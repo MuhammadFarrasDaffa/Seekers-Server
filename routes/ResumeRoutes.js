@@ -1,0 +1,15 @@
+const express = require("express");
+const router = express.Router();
+const multer = require("multer");
+const ResumeController = require("../controllers/ResumeController");
+
+// Konfigurasi Multer: Simpan file di Memory (RAM) sementara
+// Kita tidak perlu simpan di disk karena tujuannya cuma mau diambil teksnya
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+// URL: /api/v1/resume/parse
+// 'resume' adalah nama field key di form-data nanti
+router.post("/parse", upload.single("resume"), ResumeController.parseResume);
+
+module.exports = router;
