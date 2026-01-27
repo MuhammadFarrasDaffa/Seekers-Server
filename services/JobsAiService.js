@@ -5,10 +5,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 const analyzeMatch = async (jobData, userProfile) => {
-    try {
-        // --- PROMPT ENGINEERING ---
-        // Kita susun data job menjadi string yang rapi
-        const jobContext = `
+  try {
+    const jobContext = `
       JOB TITLE: ${jobData.title}
       COMPANY: ${jobData.company}
       LEVEL: ${jobData.experienceLevel || "Not specified"}
@@ -18,36 +16,36 @@ const analyzeMatch = async (jobData, userProfile) => {
       JOB DESCRIPTION: ${jobData.description.replace(/<[^>]*>?/gm, "")} // Hapus tag HTML biar hemat token
     `;
 
-        const userSkills =
-            userProfile.profile.skills && Array.isArray(userProfile.profile.skills)
-                ? userProfile.profile.skills.join(", ")
-                : "-";
+    const userSkills =
+      userProfile.profile.skills && Array.isArray(userProfile.profile.skills)
+        ? userProfile.profile.skills.join(", ")
+        : "-";
 
-        // Pastikan experience ada dan berbentuk array
-        const userExperience =
-            userProfile.profile.experience &&
-                Array.isArray(userProfile.profile.experience)
-                ? userProfile.profile.experience
-                    .map(
-                        (exp) =>
-                            `- ${exp.position} at ${exp.company} (${exp.startDate || ""} - ${exp.endDate || "Present"}): ${exp.description || ""}`,
-                    )
-                    .join("\n")
-                : "No experience listed.";
+    // Pastikan experience ada dan berbentuk array
+    const userExperience =
+      userProfile.profile.experience &&
+      Array.isArray(userProfile.profile.experience)
+        ? userProfile.profile.experience
+            .map(
+              (exp) =>
+                `- ${exp.position} at ${exp.company} (${exp.startDate || ""} - ${exp.endDate || "Present"}): ${exp.description || ""}`,
+            )
+            .join("\n")
+        : "No experience listed.";
 
-        // Pastikan education ada dan berbentuk array
-        const userEducation =
-            userProfile.profile.education &&
-                Array.isArray(userProfile.profile.education)
-                ? userProfile.profile.education
-                    .map(
-                        (edu) =>
-                            `- ${edu.degree} in ${edu.fieldOfStudy} at ${edu.institution}`,
-                    )
-                    .join("\n")
-                : "No education listed.";
+    // Pastikan education ada dan berbentuk array
+    const userEducation =
+      userProfile.profile.education &&
+      Array.isArray(userProfile.profile.education)
+        ? userProfile.profile.education
+            .map(
+              (edu) =>
+                `- ${edu.degree} in ${edu.fieldOfStudy} at ${edu.institution}`,
+            )
+            .join("\n")
+        : "No education listed.";
 
-        const userContext = `
+    const userContext = `
       PROFESSIONAL TITLE: ${userProfile.profile.title || "Not specified"}
       SUMMARY: ${userProfile.profile.summary || "Not specified"}
       SKILLS: ${userSkills}
@@ -59,7 +57,7 @@ const analyzeMatch = async (jobData, userProfile) => {
       ${userEducation}
     `;
 
-        const prompt = `
+    const prompt = `
       Act as an Expert ATS (Applicant Tracking System) and HR Manager.
       
       Your Task:
@@ -88,30 +86,30 @@ const analyzeMatch = async (jobData, userProfile) => {
       }
     `;
 
-        const response = await genAI.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            // Force output menjadi JSON agar mudah diolah frontend
-            config: { responseMimeType: "application/json" },
-        });
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      // Force output menjadi JSON agar mudah diolah frontend
+      config: { responseMimeType: "application/json" },
+    });
 
-        // Parse JSON string dari AI menjadi Object JavaScript
-        // console.log(response.text);
+    // Parse JSON string dari AI menjadi Object JavaScript
+    // console.log(response.text);
 
-        const parsedResult = JSON.parse(response.text);
+    const parsedResult = JSON.parse(response.text);
 
-        // console.log("Parsed AI Result:", parsedResult);
+    // console.log("Parsed AI Result:", parsedResult);
 
-        return parsedResult;
-    } catch (error) {
-        console.error("Error Gemini AI:", error);
-        throw new Error("Gagal melakukan analisis AI");
-    }
+    return parsedResult;
+  } catch (error) {
+    console.error("Error Gemini AI:", error);
+    throw new Error("Gagal melakukan analisis AI");
+  }
 };
 
 const parseCV = async (cvText) => {
-    try {
-        const prompt = `
+  try {
+    const prompt = `
       Act as a Professional Resume Parser.
       Extract information from the RESUME TEXT below and format it into a structured JSON object.
 
@@ -157,18 +155,18 @@ const parseCV = async (cvText) => {
       3. Fix typos if obvious.
     `;
 
-        const response = await genAI.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: { responseMimeType: "application/json" },
-        });
+    const response = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: { responseMimeType: "application/json" },
+    });
 
-        const parsedProfile = JSON.parse(response.text);
-        return parsedProfile;
-    } catch (error) {
-        console.error("🚀 ~ parseCV ~ error:", error);
-        throw new Error("Gagal mengekstrak informasi CV");
-    }
+    const parsedProfile = JSON.parse(response.text);
+    return parsedProfile;
+  } catch (error) {
+    console.error("🚀 ~ parseCV ~ error:", error);
+    throw new Error("Gagal mengekstrak informasi CV");
+  }
 };
 
 module.exports = { analyzeMatch, parseCV };
