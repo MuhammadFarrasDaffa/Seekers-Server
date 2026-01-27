@@ -2,6 +2,7 @@
 const mongoose = require("mongoose");
 
 const interviewSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, required: true },
     categoryId: { type: mongoose.Schema.Types.ObjectId, required: true },
     category: { type: String, required: true },
     level: { type: String, required: true },

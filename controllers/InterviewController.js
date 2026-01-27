@@ -6,29 +6,45 @@ const fetch = require('node-fetch');
 
 const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
 const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
+const { ObjectId } = require("mongodb");
+
 
 const Question = require('../models/Question');
-const Category = require('../models/Category');
 const Interview = require('../models/Interview');
+const User = require("../models/User");
 
 module.exports = class InterviewController {
     static async getStart(req, res, next) {
 
-        const { categoryId, level, tier } = req.body
+        const { categoryId, level, tier, tokenUsage } = req.body;
 
         // Validasi input
-        if (!level || !categoryId || !tier) {
+        if (!level || !categoryId || !tier || !tokenUsage) {
             return res.status(400).json({
-                message: "Level, categoryId, dan tier harus disediakan"
+                message: "Level, categoryId, tier, dan token harus disediakan"
             });
         }
+
+        console.log({ categoryId, level, tier, tokenUsage });
+        console.log("Token Tersisa", 10 - tokenUsage);
+
+        // check token user
+        // const userToken = await User.findById(req.user.id).then(user => user.token);
+
+        // if (userToken < tokenUsage) {
+        //     return res.status(403).json({
+        //         message: "Token tidak cukup, silakan top up token Anda."
+        //     });
+        // }
 
         try {
 
             const questions = await Question.find({
-                categoryId: categoryId,
+                categoryId: new ObjectId(categoryId),
                 level: level
             }).populate('categoryId', 'title');
+
+            // console.log(questions)
 
             let data = [];
 
@@ -58,8 +74,12 @@ module.exports = class InterviewController {
                 audioUrl: q.audioUrl
             }));
 
-            res.status(201).json(transformedData);
+            // update token user
+            // await User.findByIdAndUpdate(req.user.id, {
+            //     $inc: { token: -tokenUsage }
+            // });
 
+            res.status(201).json(transformedData);
         } catch (error) {
             next(error);
         }
@@ -88,6 +108,9 @@ module.exports = class InterviewController {
 
     static async saveInterview(req, res, next) {
         try {
+
+            const userId = req.user.id;
+
             const { categoryId, category, level, tier, questions, answers } = req.body;
 
             console.log("Received interview data:", { categoryId, category, level, tier, questionsCount: questions?.length, answersCount: answers?.length });
@@ -102,6 +125,7 @@ module.exports = class InterviewController {
 
             // Simpan interview ke database
             const interview = await Interview.create({
+                userId,
                 categoryId,
                 category,
                 level,
@@ -413,15 +437,6 @@ module.exports = class InterviewController {
             const genAI = new GoogleGenAI({});
             const { interviewData } = req.body;
 
-            // interviewData structure:
-            // {
-            //   category: "Frontend Developer",
-            //   level: "junior",
-            //   questions: [...],
-            //   answers: [
-            //     { question: "...", answer: "...", duration: 30 }
-            //   ]
-            // }
 
             const prompt = `
         Task: Anggap dirimu adalah seorang Interview Expert yang akan mengevaluasi hasil interview kandidat.
