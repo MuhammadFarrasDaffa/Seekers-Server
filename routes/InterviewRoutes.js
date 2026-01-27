@@ -7,7 +7,7 @@ const multer = require('multer');
 const authentication = require('../middleware/Authentication');
 const upload = multer({ storage: multer.memoryStorage() });
 
-// router.use(authentication)
+router.use(authentication)
 
 router.post('/start', InterviewController.getStart)
 router.post('/answer', upload.single('file'), InterviewController.answerQuestion);

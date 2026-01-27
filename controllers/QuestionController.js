@@ -1,5 +1,6 @@
 const Question = require("../models/Question");
 const Category = require("../models/Category");
+const { ObjectId } = require("mongodb");
 
 module.exports = class QuestionController {
     // QUESTION SECTION
@@ -31,12 +32,12 @@ module.exports = class QuestionController {
                 return res.status(400).json({ message: "categoryId and level are required" });
             }
 
-            const count = await Question.countDocuments({
-                categoryId: categoryId,
+            const count = await Question.find({
+                categoryId: new ObjectId(categoryId),
                 level: String(level)
             });
 
-            res.status(200).json({ count: count });
+            res.status(200).json({ count: count.length });
         } catch (error) {
             next(error);
         }
