@@ -1,81 +1,121 @@
 const puppeteer = require("puppeteer");
 
 class PDFService {
-    constructor() {
-        this.browser = null;
-    }
+  constructor() {
+    this.browser = null;
+  }
 
-    async initializeBrowser() {
-        if (!this.browser) {
-            this.browser = await puppeteer.launch({
-                headless: "new",
-                args: ["--no-sandbox", "--disable-setuid-sandbox"],
-            });
+  async initializeBrowser() {
+    if (!this.browser) {
+      this.browser = await puppeteer.launch({
+        headless: "new",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+    }
+  }
+
+  async closeBrowser() {
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
+    }
+  }
+
+  // Helper function to format date ranges
+  formatDateRange(startDate, endDate) {
+    const toYearMonth = (value) => {
+      if (!value) return "";
+      // Handle literal Present
+      if (value === "Present" || value === "present") return "Present";
+
+      // If Date instance
+      if (value instanceof Date) {
+        const y = value.getFullYear();
+        const m = String(value.getMonth() + 1).padStart(2, "0");
+        return `${y}-${m}`;
+      }
+
+      // If timestamp number
+      if (typeof value === "number") {
+        const d = new Date(value);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          return `${y}-${m}`;
         }
-    }
+        return String(value);
+      }
 
-    async closeBrowser() {
-        if (this.browser) {
-            await this.browser.close();
-            this.browser = null;
+      // If string, try to normalize
+      if (typeof value === "string") {
+        const s = value.trim();
+        // Already YYYY-MM format
+        if (/^\d{4}-\d{2}$/.test(s)) return s;
+        // If full date like YYYY-MM-DD, reduce to YYYY-MM
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.slice(0, 7);
+        // Try to parse generic date string
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          return `${y}-${m}`;
         }
-    }
+        // Fallback: keep as-is (e.g., custom labels)
+        return s;
+      }
 
-    // Helper function to format date ranges
-    formatDateRange(startDate, endDate) {
-        if (!startDate) return "";
+      // Fallback for objects with toISOString
+      if (value && typeof value.toISOString === "function") {
+        const d = new Date(value.toISOString());
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          return `${y}-${m}`;
+        }
+      }
 
-        // Convert to shorter format if possible
-        const formatDate = (date) => {
-            if (!date) return "";
-            // If it's already short (e.g., "2023-10"), keep it
-            if (date.length <= 7) return date;
-            // If it's a full date, extract year-month
-            if (date.includes("-")) {
-                const parts = date.split("-");
-                return `${parts[0]}-${parts[1]}`;
-            }
-            return date;
-        };
+      return String(value);
+    };
 
-        const start = formatDate(startDate);
-        const end = endDate ? formatDate(endDate) : "Present";
+    const start = toYearMonth(startDate);
+    const endNormalized = toYearMonth(endDate);
+    const end = endNormalized || "Present";
+    if (!start && !end) return "";
+    return `${start} – ${end}`;
+  }
 
-        return `${start} – ${end}`;
-    }
+  // Helper function to escape HTML
+  escapeHtml(text) {
+    if (!text) return "";
+    const map = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;",
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+  }
 
-    // Helper function to escape HTML
-    escapeHtml(text) {
-        if (!text) return "";
-        const map = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#039;",
-        };
-        return text.replace(/[&<>"']/g, (m) => map[m]);
-    }
+  generateCVHTML(profile, user, style = "modern") {
+    const {
+      fullName,
+      title,
+      email,
+      phone,
+      location,
+      summary,
+      experience,
+      education,
+      skills,
+      certifications,
+      aiSummary,
+      linkedIn,
+      github,
+      portfolio,
+    } = profile;
 
-    generateCVHTML(profile, user, style = "modern") {
-        const {
-            fullName,
-            headline,
-            email,
-            phone,
-            address,
-            summary,
-            experience,
-            education,
-            skills,
-            certifications,
-            aiSummary,
-            linkedin,
-            github,
-            portfolio,
-        } = profile;
-
-        return `
+    return `
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -262,21 +302,22 @@ class PDFService {
             <!-- Header -->
             <div class="header">
                 <div class="name">${this.escapeHtml(fullName || user?.name || "Full Name")}</div>
-                ${headline ? `<div class="headline">${this.escapeHtml(headline)}</div>` : ""}
+                ${title ? `<div class="headline">${this.escapeHtml(title)}</div>` : ""}
                 <div class="contact-info">
-                    ${address ? `${this.escapeHtml(address)} | ` : ""}
+                    ${location ? `${this.escapeHtml(location)} | ` : ""}
                     ${email || user?.email ? `${email || user?.email}` : ""} ${phone ? ` | ${phone}` : ""}
-                    ${linkedin || github || portfolio ? "<br/>" : ""}
-                    ${linkedin ? `<a href="${linkedin}">LinkedIn</a>` : ""}
-                    ${linkedin && github ? " | " : ""}
+                    ${linkedIn || github || portfolio ? "<br/>" : ""}
+                    ${linkedIn ? `<a href="${linkedIn}">LinkedIn</a>` : ""}
+                    ${linkedIn && github ? " | " : ""}
                     ${github ? `<a href="${github}">GitHub</a>` : ""}
-                    ${(linkedin || github) && portfolio ? " | " : ""}
+                    ${(linkedIn || github) && portfolio ? " | " : ""}
                     ${portfolio ? `<a href="${portfolio}">Portfolio</a>` : ""}
                 </div>
             </div>
 
             <!-- Summary -->
-            ${aiSummary
+            ${
+              aiSummary
                 ? `
             <div class="section">
                 <div class="section-title">SUMMARY</div>
@@ -287,41 +328,44 @@ class PDFService {
             }
 
             <!-- Education -->
-            ${education && education.length > 0
+            ${
+              education && education.length > 0
                 ? `
             <div class="section">
                 <div class="section-title">EDUCATION</div>
                 ${education
-                    .map(
-                        (edu) => `
+                  .map(
+                    (edu) => `
                     <div class="education-item">
                         <div class="item-header">
                             <div style="flex: 1;">
                                 <div class="item-company">${this.escapeHtml(edu.institution || "")}</div>
-                                <div class="item-title">${this.escapeHtml(edu.degree || "")}${edu.field ? ` in ${this.escapeHtml(edu.field)}` : ""}</div>
+                                <div class="item-title">${this.escapeHtml(edu.degree || "")}${edu.fieldOfStudy ? ` in ${this.escapeHtml(edu.fieldOfStudy)}` : ""}</div>
                             </div>
                             <div class="item-date" style="margin-left: 10px;">
-                                ${edu.graduationYear || ""}
+                                ${this.formatDateRange(edu.startDate, edu.endDate)}
                             </div>
                         </div>
                         ${edu.grade ? `<div style="font-size: 9pt; color: #555;">GPA / Score : ${edu.grade}</div>` : ""}
+                        ${edu.description ? `<div style="font-size: 9pt; color: #555; margin-top: 2px;">${this.escapeHtml(edu.description)}</div>` : ""}
                     </div>
                 `,
-                    )
-                    .join("")}
+                  )
+                  .join("")}
             </div>
             `
                 : ""
             }
 
             <!-- Work Experience -->
-            ${experience && experience.length > 0
+            ${
+              experience && experience.length > 0
                 ? `
             <div class="section">
                 <div class="section-title">WORK EXPERIENCE</div>
                 ${experience
-                    .map(
-                        (exp) => `
+                  .map(
+                    (exp) => `
                     <div class="experience-item">
                         <div class="item-header">
                             <div style="flex: 1;">
@@ -332,38 +376,46 @@ class PDFService {
                             </div>
                         </div>
                         <div class="item-title">${exp.position || ""}</div>
-                        ${exp.description && exp.description.length > 0
-                                ? `
+                        ${
+                          exp.description && exp.description.length > 0
+                            ? `
                         <ul class="item-description">
                             ${exp.description
-                                    .filter((d) => d && d.trim())
-                                    .map(
-                                        (desc) => `<li>${this.escapeHtml(desc)}</li>`,
-                                    )
-                                    .join("")}
+                              .filter((d) => d && d.trim())
+                              .map(
+                                (desc) => `<li>${this.escapeHtml(desc)}</li>`,
+                              )
+                              .join("")}
                         </ul>
                         `
-                                : ""
-                            }
+                            : ""
+                        }
                     </div>
                 `,
-                    )
-                    .join("")}
+                  )
+                  .join("")}
             </div>
             `
                 : ""
             }
 
             <!-- Skills -->
-            ${skills && skills.length > 0
+            ${
+              skills && skills.length > 0
                 ? `
             <div class="section">
                 <div class="section-title">SKILLS</div>
                 <div class="skills-list">
                     ${skills
-                    .filter((s) => s.name && s.name.trim())
-                    .map((s) => this.escapeHtml(s.name))
-                    .join(" • ")}
+                      .filter(
+                        (s) =>
+                          (typeof s === "string" && s.trim()) ||
+                          (s.name && s.name.trim()),
+                      )
+                      .map((s) =>
+                        this.escapeHtml(typeof s === "string" ? s : s.name),
+                      )
+                      .join(" • ")}
                 </div>
             </div>
             `
@@ -371,29 +423,31 @@ class PDFService {
             }
 
             <!-- Certifications -->
-            ${certifications && certifications.length > 0
+            ${
+              certifications && certifications.length > 0
                 ? `
             <div class="section">
                 <div class="section-title">CERTIFICATIONS</div>
                 ${certifications
-                    .map(
-                        (cert) => `
+                  .map(
+                    (cert) => `
                     <div class="cert-item">
                         <div style="font-weight: bold; font-size: 10pt;">${this.escapeHtml(cert.name || "")}</div>
-                        ${cert.issuer || cert.year
-                                ? `
+                        ${
+                          cert.issuer || cert.year
+                            ? `
                         <div class="cert-details">
                             ${cert.issuer ? this.escapeHtml(cert.issuer) : ""}
                             ${cert.issuer && cert.year ? " | " : ""}
                             ${cert.year || ""}
                         </div>
                         `
-                                : ""
-                            }
+                            : ""
+                        }
                     </div>
                 `,
-                    )
-                    .join("")}
+                  )
+                  .join("")}
             </div>
             `
                 : ""
@@ -402,56 +456,56 @@ class PDFService {
     </body>
     </html>
     `;
+  }
+
+  async generatePDF(profile, user, options = {}) {
+    try {
+      await this.initializeBrowser();
+
+      const page = await this.browser.newPage();
+
+      // Set viewport for A4 size with proper scaling
+      await page.setViewport({
+        width: 794,
+        height: 1123,
+        deviceScaleFactor: 1.5,
+      });
+
+      const htmlContent = this.generateCVHTML(profile, user, options.style);
+      await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+
+      const pdfOptions = {
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: false,
+        displayHeaderFooter: false,
+        margin: {
+          top: "1.5cm",
+          right: "1cm",
+          bottom: "1.5cm",
+          left: "1cm",
+        },
+        ...options.pdfOptions,
+      };
+
+      const pdfBuffer = await page.pdf(pdfOptions);
+      await page.close();
+
+      return pdfBuffer;
+    } catch (error) {
+      console.error("PDF Generation Error:", error);
+      throw new Error("Failed to generate PDF");
     }
+  }
 
-    async generatePDF(profile, user, options = {}) {
-        try {
-            await this.initializeBrowser();
-
-            const page = await this.browser.newPage();
-
-            // Set viewport for A4 size with proper scaling
-            await page.setViewport({
-                width: 794,
-                height: 1123,
-                deviceScaleFactor: 1.5,
-            });
-
-            const htmlContent = this.generateCVHTML(profile, user, options.style);
-            await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-
-            const pdfOptions = {
-                format: "A4",
-                printBackground: true,
-                preferCSSPageSize: false,
-                displayHeaderFooter: false,
-                margin: {
-                    top: "1.5cm",
-                    right: "1cm",
-                    bottom: "1.5cm",
-                    left: "1cm",
-                },
-                ...options.pdfOptions,
-            };
-
-            const pdfBuffer = await page.pdf(pdfOptions);
-            await page.close();
-
-            return pdfBuffer;
-        } catch (error) {
-            console.error("PDF Generation Error:", error);
-            throw new Error("Failed to generate PDF");
-        }
+  async generatePreviewHTML(profile, user, style = "modern") {
+    try {
+      return this.generateCVHTML(profile, user, style);
+    } catch (error) {
+      console.error("HTML Preview Generation Error:", error);
+      throw new Error("Failed to generate HTML preview");
     }
-
-    async generatePreviewHTML(profile, user, style = "modern") {
-        try {
-            return this.generateCVHTML(profile, user, style);
-        } catch (error) {
-            console.error("HTML Preview Generation Error:", error);
-            throw new Error("Failed to generate HTML preview");
-        }
-    }
+  }
 }
 
 module.exports = new PDFService();
