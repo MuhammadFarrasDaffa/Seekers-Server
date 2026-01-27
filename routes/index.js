@@ -10,6 +10,8 @@ const PdfRoutes = require("./PdfRoutes");
 const InterviewRoutes = require("./InterviewRoutes");
 const QuestionRoutes = require("./QuestionRoutes");
 const PaymentRoutes = require("./PaymentRoutes");
+const TierRoutes = require("./TierRoutes");
+const PackageRoutes = require("./PackageRoutes");
 
 router.use("/auth", authRoutes);
 router.use("/profile", profileRoutes);
@@ -20,5 +22,7 @@ router.use("/pdf", PdfRoutes);
 router.use("/interviews", InterviewRoutes);
 router.use("/questions", QuestionRoutes);
 router.use("/payment", PaymentRoutes);
+router.use("/tiers", TierRoutes);
+router.use("/packages", PackageRoutes);
 
 module.exports = router;

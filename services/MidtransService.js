@@ -1,23 +1,5 @@
 const midtransClient = require("midtrans-client");
-
-// Paket token yang tersedia
-const TOKEN_PACKAGES = {
-    basic: {
-        tokens: 10,
-        price: 50000,
-        name: "Basic Package",
-    },
-    pro: {
-        tokens: 25,
-        price: 100000,
-        name: "Pro Package",
-    },
-    premium: {
-        tokens: 50,
-        price: 180000,
-        name: "Premium Package",
-    },
-};
+const Package = require("../models/Package");
 
 class MidtransService {
     constructor() {
@@ -35,24 +17,34 @@ class MidtransService {
     }
 
     /**
-     * Get package details
+     * Get package details from database
      */
-    getPackage(packageType) {
-        return TOKEN_PACKAGES[packageType];
+    async getPackage(packageType) {
+        try {
+            const package_ = await Package.findOne({ type: packageType });
+            return package_;
+        } catch (error) {
+            throw new Error(`Failed to fetch package: ${error.message}`);
+        }
     }
 
     /**
-     * Get all packages
+     * Get all packages from database
      */
-    getAllPackages() {
-        return TOKEN_PACKAGES;
+    async getAllPackages() {
+        try {
+            const packages = await Package.find().sort({ price: 1 });
+            return packages;
+        } catch (error) {
+            throw new Error(`Failed to fetch packages: ${error.message}`);
+        }
     }
 
     /**
      * Create Snap transaction
      */
     async createTransaction(orderId, packageType, customerDetails) {
-        const packageData = this.getPackage(packageType);
+        const packageData = await this.getPackage(packageType);
 
         if (!packageData) {
             throw new Error("Invalid package type");

@@ -147,6 +147,26 @@ module.exports = class InterviewController {
         }
     }
 
+    static async getInterviewHistory(req, res, next) {
+        try {
+            const userId = req.user.id;
+
+            // Get all interviews for the logged-in user, sorted by most recent
+            const interviews = await Interview.find({ userId })
+                .sort({ completedAt: -1 })
+                .select('categoryId category level tier completedAt evaluated evaluation questions answers');
+
+            res.status(200).json({
+                success: true,
+                interviews
+            });
+
+        } catch (error) {
+            console.error("Error getting interview history:", error);
+            next(error);
+        }
+    }
+
     static async getInterviewById(req, res, next) {
         try {
             const { id } = req.params;

@@ -16,6 +16,7 @@ router.post('/evaluate', InterviewController.evaluateInterview);
 
 // New routes for saving and evaluating interviews
 router.post('/save', InterviewController.saveInterview);
+router.get('/history', InterviewController.getInterviewHistory);
 router.get('/:id', InterviewController.getInterviewById);
 router.post('/:id/evaluate', InterviewController.evaluateInterviewById);
 
