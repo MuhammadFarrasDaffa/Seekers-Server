@@ -99,13 +99,32 @@ class PaymentController {
 
             console.log("INI ISI NOTIFIKASI", { notification });
 
+            // Verify signature key to ensure notification is from Midtrans
+            const { order_id, status_code, gross_amount, signature_key } = notification;
+
+            const isValidSignature = midtransService.verifySignatureKey(
+                order_id,
+                status_code,
+                gross_amount,
+                signature_key
+            );
+
+            if (!isValidSignature) {
+                console.error("❌ Invalid signature key! Notification might not be from Midtrans");
+                return res.status(403).json({
+                    success: false,
+                    message: "Invalid signature key",
+                });
+            }
+
+            console.log("✅ Signature verified - notification is from Midtrans");
 
             // Verify notification with Midtrans
             const statusResponse = await midtransService.verifyNotification(
                 notification
             );
 
-            const { order_id, transaction_status, fraud_status, payment_type } =
+            const { transaction_status, fraud_status, payment_type } =
                 statusResponse;
 
             console.log(`💳 Transaction ${order_id} status: ${transaction_status}`);
@@ -116,6 +135,15 @@ class PaymentController {
                 return res.status(404).json({
                     success: false,
                     message: "Payment not found",
+                });
+            }
+
+            // Prevent processing already successful payments
+            if (payment.status === "success") {
+                console.log(`⚠️ Payment ${order_id} already processed as success. Skipping...`);
+                return res.status(200).json({
+                    success: true,
+                    message: "Payment already processed",
                 });
             }
 

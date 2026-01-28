@@ -1,5 +1,6 @@
 const midtransClient = require("midtrans-client");
 const Package = require("../models/Package");
+const crypto = require("crypto");
 
 class MidtransService {
     constructor() {
@@ -93,6 +94,16 @@ class MidtransService {
         } catch (error) {
             throw new Error(`Failed to check transaction status: ${error.message}`);
         }
+    }
+
+    /**
+     * Verify signature key from Midtrans notification
+     */
+    verifySignatureKey(orderId, statusCode, grossAmount, signatureKey) {
+        const serverKey = process.env.MIDTRANS_SERVER_KEY;
+        const input = `${orderId}${statusCode}${grossAmount}${serverKey}`;
+        const hash = crypto.createHash('sha512').update(input).digest('hex');
+        return hash === signatureKey;
     }
 
     /**
