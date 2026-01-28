@@ -1,224 +1,276 @@
 const { GoogleGenAI } = require("@google/genai");
 
-const { Readable } = require('stream');
-const FormData = require('form-data');
-const fetch = require('node-fetch');
-
-const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
-const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
+const { ElevenLabsClient } = require("@elevenlabs/elevenlabs-js");
+const elevenlabs = new ElevenLabsClient({
+  apiKey: process.env.ELEVENLABS_API_KEY,
+});
 const { ObjectId } = require("mongodb");
 
-
-const Question = require('../models/Question');
-const Interview = require('../models/Interview');
+const Question = require("../models/Question");
+const Interview = require("../models/Interview");
 const User = require("../models/User");
+const Tier = require("../models/Tier");
 
 module.exports = class InterviewController {
-    static async getStart(req, res, next) {
+  static async getStart(req, res, next) {
+    const { categoryId, level, tier, tokenUsage } = req.body;
 
-        const { categoryId, level, tier, tokenUsage } = req.body;
-
-        // Validasi input
-        if (!level || !categoryId || !tier || !tokenUsage) {
-            return res.status(400).json({
-                message: "Level, categoryId, tier, dan token harus disediakan"
-            });
-        }
-
-        // check token user
-        const userToken = await User.findById(req.user.id).then(user => user.token);
-
-        if (userToken < tokenUsage) {
-            return res.status(403).json({
-                message: "Token tidak cukup, silakan top up token Anda."
-            });
-        }
-
-        try {
-
-            const questions = await Question.find({
-                categoryId: new ObjectId(categoryId),
-                level: level
-            }).populate('categoryId', 'title');
-
-            // console.log(questions)
-
-            let data = [];
-
-            if (tier === 'free') {
-                data = [
-                    ...questions.filter(q => q.type === 'intro').sort(() => 0.5 - Math.random()).slice(0, 1),
-                    ...questions.filter(q => q.type === 'core').sort(() => 0.5 - Math.random()).slice(0, 3),
-                    ...questions.filter(q => q.type === 'closing').sort(() => 0.5 - Math.random()).slice(0, 1),
-                ]
-            } else if (tier === 'premium') {
-                data = [
-                    ...questions.filter(q => q.type === 'intro').sort(() => 0.5 - Math.random()).slice(0, 1),
-                    ...questions.filter(q => q.type === 'core').sort(() => 0.5 - Math.random()).slice(0, 8),
-                    ...questions.filter(q => q.type === 'closing').sort(() => 0.5 - Math.random()).slice(0, 1),
-                ]
-            }
-
-            // Transform data untuk mengganti categoryId dengan category title
-            const transformedData = data.map(q => ({
-                _id: q._id,
-                categoryId: q.categoryId._id,
-                category: { title: q.categoryId.title },
-                level: q.level,
-                type: q.type,
-                content: q.content,
-                followUp: q.followUp,
-                audioUrl: q.audioUrl
-            }));
-
-            // update token user
-            await User.findByIdAndUpdate(req.user.id, {
-                $inc: { token: -tokenUsage }
-            });
-
-            res.status(201).json(transformedData);
-        } catch (error) {
-            next(error);
-        }
+    // Validasi input
+    if (!level || !categoryId || !tier || !tokenUsage) {
+      return res.status(400).json({
+        message: "Level, categoryId, tier, dan token harus disediakan",
+      });
     }
 
-    static async answerQuestion(req, res, next) {
-        try {
-            const file = req.file;
+    // check token user
+    const userToken = await User.findById(req.user.id).then(
+      (user) => user.token,
+    );
 
-            if (!file) {
-                return res.status(400).json({ message: "Tolong upload file audio" });
-            }
-
-            // Panggil fungsi transcribe dengan mengirimkan objek file dari multer
-            const transcriptionText = await InterviewController.transcribeAudio(file);
-
-            res.status(200).json({
-                message: "Success transcribe audio",
-                transcription: transcriptionText
-            });
-        } catch (error) {
-            console.error("Error Transcribe:", error.message);
-            next(error);
-        }
+    if (userToken < tokenUsage) {
+      return res.status(403).json({
+        message: "Token tidak cukup, silakan top up token Anda.",
+      });
     }
 
-    static async saveInterview(req, res, next) {
-        try {
+    try {
+      // Ambil data tier dari database untuk mendapatkan jumlah pertanyaan
+      console.log("🔍 Searching tier:", tier);
 
-            const userId = req.user.id;
+      // Debug: Lihat semua tier yang ada di database
+      const allTiers = await Tier.find({});
+      console.log(
+        "📋 All tiers in database:",
+        allTiers.map((t) => ({ title: t.title, quota: t.quota })),
+      );
 
-            const { categoryId, category, level, tier, questions, answers } = req.body;
+      const tierData = await Tier.findOne({
+        title: new RegExp(tier, "i"),
+      });
 
-            console.log("Received interview data:", { categoryId, category, level, tier, questionsCount: questions?.length, answersCount: answers?.length });
+      console.log("📊 Tier data found:", tierData);
 
-            // Validasi input
-            if (!categoryId || !category || !level || !tier || !questions || !answers) {
-                console.log("Validation failed:", { categoryId: !!categoryId, category: !!category, level: !!level, tier: !!tier, questions: !!questions, answers: !!answers });
-                return res.status(400).json({
-                    message: "Data interview tidak lengkap"
-                });
-            }
+      if (!tierData) {
+        return res.status(400).json({
+          message: `Tier "${tier}" tidak ditemukan di database`,
+        });
+      }
 
-            // Simpan interview ke database
-            const interview = await Interview.create({
-                userId,
-                categoryId,
-                category,
-                level,
-                tier,
-                questions,
-                answers
-            });
+      const totalQuestions = tierData.quota;
+      console.log("📝 Total questions from quota:", totalQuestions);
 
-            console.log("Interview saved successfully:", interview._id);
+      // Hitung jumlah core questions (total - 1 intro - 1 closing)
+      const coreQuestionsCount = totalQuestions - 2;
 
-            res.status(201).json({
-                message: "Interview berhasil disimpan",
-                interviewId: interview._id
-            });
+      if (coreQuestionsCount < 0) {
+        return res.status(400).json({
+          message: "Total pertanyaan tier terlalu kecil (minimum 2)",
+        });
+      }
 
-        } catch (error) {
-            console.error("Error saving interview:", error);
-            next(error);
-        }
+      const questions = await Question.find({
+        categoryId: new ObjectId(categoryId),
+        level: level,
+      }).populate("categoryId", "title");
+
+      // console.log(questions)
+
+      // Ambil pertanyaan secara acak: 1 intro + N core + 1 closing
+      const data = [
+        ...questions
+          .filter((q) => q.type === "intro")
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 1),
+        ...questions
+          .filter((q) => q.type === "core")
+          .sort(() => 0.5 - Math.random())
+          .slice(0, coreQuestionsCount),
+        ...questions
+          .filter((q) => q.type === "closing")
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 1),
+      ];
+
+      // Transform data untuk mengganti categoryId dengan category title
+      const transformedData = data.map((q) => ({
+        _id: q._id,
+        categoryId: q.categoryId._id,
+        category: { title: q.categoryId.title },
+        level: q.level,
+        type: q.type,
+        content: q.content,
+        followUp: q.followUp,
+        audioUrl: q.audioUrl,
+      }));
+
+      // update token user
+      await User.findByIdAndUpdate(req.user.id, {
+        $inc: { token: -tokenUsage },
+      });
+
+      res.status(201).json(transformedData);
+    } catch (error) {
+      next(error);
     }
+  }
 
-    static async getInterviewHistory(req, res, next) {
-        try {
-            const userId = req.user.id;
+  static async answerQuestion(req, res, next) {
+    try {
+      const file = req.file;
 
-            // Get all interviews for the logged-in user, sorted by most recent
-            const interviews = await Interview.find({ userId })
-                .sort({ completedAt: -1 })
-                .select('categoryId category level tier completedAt evaluated evaluation questions answers');
+      if (!file) {
+        return res.status(400).json({ message: "Tolong upload file audio" });
+      }
 
-            res.status(200).json({
-                success: true,
-                interviews
-            });
+      // Panggil fungsi transcribe dengan mengirimkan objek file dari multer
+      const transcriptionText = await InterviewController.transcribeAudio(file);
 
-        } catch (error) {
-            console.error("Error getting interview history:", error);
-            next(error);
-        }
+      res.status(200).json({
+        message: "Success transcribe audio",
+        transcription: transcriptionText,
+      });
+    } catch (error) {
+      console.error("Error Transcribe:", error.message);
+      next(error);
     }
+  }
 
-    static async getInterviewById(req, res, next) {
-        try {
-            const { id } = req.params;
+  static async saveInterview(req, res, next) {
+    try {
+      const userId = req.user.id;
 
-            const interview = await Interview.findById(id);
+      const { categoryId, category, level, tier, questions, answers } =
+        req.body;
 
-            if (!interview) {
-                return res.status(404).json({
-                    message: "Interview tidak ditemukan"
-                });
-            }
+      console.log("Received interview data:", {
+        categoryId,
+        category,
+        level,
+        tier,
+        questionsCount: questions?.length,
+        answersCount: answers?.length,
+      });
 
-            res.status(200).json(interview);
+      // Validasi input
+      if (
+        !categoryId ||
+        !category ||
+        !level ||
+        !tier ||
+        !questions ||
+        !answers
+      ) {
+        console.log("Validation failed:", {
+          categoryId: !!categoryId,
+          category: !!category,
+          level: !!level,
+          tier: !!tier,
+          questions: !!questions,
+          answers: !!answers,
+        });
+        return res.status(400).json({
+          message: "Data interview tidak lengkap",
+        });
+      }
 
-        } catch (error) {
-            console.error("Error getting interview:", error);
-            next(error);
-        }
+      // Simpan interview ke database
+      const interview = await Interview.create({
+        userId,
+        categoryId,
+        category,
+        level,
+        tier,
+        questions,
+        answers,
+      });
+
+      console.log("Interview saved successfully:", interview._id);
+
+      res.status(201).json({
+        message: "Interview berhasil disimpan",
+        interviewId: interview._id,
+      });
+    } catch (error) {
+      console.error("Error saving interview:", error);
+      next(error);
     }
+  }
 
-    static async evaluateInterviewById(req, res, next) {
-        try {
-            const { id } = req.params;
+  static async getInterviewHistory(req, res, next) {
+    try {
+      const userId = req.user.id;
 
-            // Get interview data
-            const interview = await Interview.findById(id);
+      // Get all interviews for the logged-in user, sorted by most recent
+      const interviews = await Interview.find({ userId })
+        .sort({ completedAt: -1 })
+        .select(
+          "categoryId category level tier completedAt evaluated evaluation questions answers",
+        );
 
-            if (!interview) {
-                return res.status(404).json({
-                    message: "Interview tidak ditemukan"
-                });
-            }
+      res.status(200).json({
+        success: true,
+        interviews,
+      });
+    } catch (error) {
+      console.error("Error getting interview history:", error);
+      next(error);
+    }
+  }
 
-            // Check if already evaluated
-            if (interview.evaluated) {
-                return res.status(200).json({
-                    success: true,
-                    evaluation: interview.evaluation
-                });
-            }
+  static async getInterviewById(req, res, next) {
+    try {
+      const { id } = req.params;
 
-            // Prepare data for evaluation
-            const interviewData = {
-                category: interview.category,
-                level: interview.level,
-                answers: interview.answers.map(a => ({
-                    question: a.question,
-                    answer: a.transcription,
-                    duration: a.duration || 0
-                }))
-            };
+      const interview = await Interview.findById(id);
 
-            const genAI = new GoogleGenAI({});
+      if (!interview) {
+        return res.status(404).json({
+          message: "Interview tidak ditemukan",
+        });
+      }
 
-            const prompt = `
+      res.status(200).json(interview);
+    } catch (error) {
+      console.error("Error getting interview:", error);
+      next(error);
+    }
+  }
+
+  static async evaluateInterviewById(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      // Get interview data
+      const interview = await Interview.findById(id);
+
+      if (!interview) {
+        return res.status(404).json({
+          message: "Interview tidak ditemukan",
+        });
+      }
+
+      // Check if already evaluated
+      if (interview.evaluated) {
+        return res.status(200).json({
+          success: true,
+          evaluation: interview.evaluation,
+        });
+      }
+
+      // Prepare data for evaluation
+      const interviewData = {
+        category: interview.category,
+        level: interview.level,
+        answers: interview.answers.map((a) => ({
+          question: a.question,
+          answer: a.transcription,
+          duration: a.duration || 0,
+        })),
+      };
+
+      const genAI = new GoogleGenAI({});
+
+      const prompt = `
         Task: Anggap dirimu adalah seorang Interview Expert yang akan mengevaluasi hasil interview kandidat.
         
         Interview Information:
@@ -227,10 +279,14 @@ module.exports = class InterviewController {
         - Total Questions: ${interviewData.answers.length}
         
         Questions & Answers:
-        ${interviewData.answers.map((qa, index) => `
+        ${interviewData.answers
+          .map(
+            (qa, index) => `
         Q${index + 1}: ${qa.question}
         A${index + 1}: ${qa.answer}
-        `).join('\n')}
+        `,
+          )
+          .join("\n")}
         
         Instructions:
         Berikan evaluasi komprehensif dalam format JSON dengan struktur berikut:
@@ -333,52 +389,56 @@ module.exports = class InterviewController {
         Output: Return ONLY the JSON object, nothing else.
         `;
 
-            const response = await genAI.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: prompt
-            });
+      const response = await genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
 
-            let evaluationText = response.text.trim();
+      let evaluationText = response.text.trim();
 
-            // Remove markdown code blocks if present
-            evaluationText = evaluationText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      // Remove markdown code blocks if present
+      evaluationText = evaluationText
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "");
 
-            const evaluation = JSON.parse(evaluationText);
+      const evaluation = JSON.parse(evaluationText);
 
-            // Calculate additional metrics
-            const completionTime = interviewData.answers.reduce((sum, a) => sum + (a.duration || 0), 0);
-            evaluation.totalQuestions = interviewData.answers.length;
-            evaluation.completionTime = `${Math.floor(completionTime / 60)} minutes`;
+      // Calculate additional metrics
+      const completionTime = interviewData.answers.reduce(
+        (sum, a) => sum + (a.duration || 0),
+        0,
+      );
+      evaluation.totalQuestions = interviewData.answers.length;
+      evaluation.completionTime = `${Math.floor(completionTime / 60)} minutes`;
 
-            // Save evaluation to database
-            await Interview.findByIdAndUpdate(id, {
-                evaluation: evaluation,
-                evaluated: true,
-                evaluatedAt: new Date()
-            });
+      // Save evaluation to database
+      await Interview.findByIdAndUpdate(id, {
+        evaluation: evaluation,
+        evaluated: true,
+        evaluatedAt: new Date(),
+      });
 
-            res.status(200).json({
-                success: true,
-                evaluation: evaluation
-            });
-
-        } catch (error) {
-            console.error("Error evaluating interview:", error);
-            next(error);
-        }
+      res.status(200).json({
+        success: true,
+        evaluation: evaluation,
+      });
+    } catch (error) {
+      console.error("Error evaluating interview:", error);
+      next(error);
     }
+  }
 
-    static async responseToAnswer(req, res, next) {
-        try {
-            const genAI = new GoogleGenAI({});
+  static async responseToAnswer(req, res, next) {
+    try {
+      const genAI = new GoogleGenAI({});
 
-            const { question, answer, needFollowUp } = req.body;
+      const { question, answer, needFollowUp } = req.body;
 
-            let prompt;
+      let prompt;
 
-            if (needFollowUp) {
-                // Generate follow-up question berdasarkan jawaban user
-                prompt = `
+      if (needFollowUp) {
+        // Generate follow-up question berdasarkan jawaban user
+        prompt = `
             Task: Anggap dirimu adalah seorang HRD Profesional yang sedang melakukan interview. Berikan 1 pertanyaan follow-up yang relevan berdasarkan jawaban kandidat.
             
             Question: ${question}
@@ -400,9 +460,9 @@ module.exports = class InterviewController {
             Output format: 
             "Your follow-up question here."
             `;
-            } else {
-                // Generate acknowledgment/response biasa
-                prompt = `
+      } else {
+        // Generate acknowledgment/response biasa
+        prompt = `
             Task: Anggap dirimu adalah seorang HRD Profesional, berikan response sebanyak 1-2 kalimat terhadap jawaban interview berikut ini berdasarkan pertanyaan yang diajukan.
             
             Question: ${question}
@@ -423,39 +483,37 @@ module.exports = class InterviewController {
             Output format: 
             "Your response text here."
             `;
-            }
+      }
 
-            const response = await genAI.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: prompt
-            });
+      const response = await genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
 
-            const data = response.text.trim();
+      const data = response.text.trim();
 
-            // Generate Audio dari response/follow-up question
-            const audioBuffer = await InterviewController.generateSpeechBuffer(data);
+      // Generate Audio dari response/follow-up question
+      const audioBuffer = await InterviewController.generateSpeechBuffer(data);
 
-            // Kirim response balik
-            res.status(201).json({
-                text: data,
-                audioBase64: audioBuffer.toString('base64'),
-                contentType: 'audio/mp3',
-                isFollowUp: needFollowUp || false
-            });
-
-        } catch (error) {
-            console.error("Error Detail:", error);
-            next(error);
-        }
+      // Kirim response balik
+      res.status(201).json({
+        text: data,
+        audioBase64: audioBuffer.toString("base64"),
+        contentType: "audio/mp3",
+        isFollowUp: needFollowUp || false,
+      });
+    } catch (error) {
+      console.error("Error Detail:", error);
+      next(error);
     }
+  }
 
-    static async evaluateInterview(req, res, next) {
-        try {
-            const genAI = new GoogleGenAI({});
-            const { interviewData } = req.body;
+  static async evaluateInterview(req, res, next) {
+    try {
+      const genAI = new GoogleGenAI({});
+      const { interviewData } = req.body;
 
-
-            const prompt = `
+      const prompt = `
         Task: Anggap dirimu adalah seorang Interview Expert yang akan mengevaluasi hasil interview kandidat.
         
         Interview Information:
@@ -464,10 +522,14 @@ module.exports = class InterviewController {
         - Total Questions: ${interviewData.answers.length}
         
         Questions & Answers:
-        ${interviewData.answers.map((qa, index) => `
+        ${interviewData.answers
+          .map(
+            (qa, index) => `
         Q${index + 1}: ${qa.question}
         A${index + 1}: ${qa.answer}
-        `).join('\n')}
+        `,
+          )
+          .join("\n")}
         
         Instructions:
         Berikan evaluasi komprehensif dalam format JSON dengan struktur berikut:
@@ -570,83 +632,84 @@ module.exports = class InterviewController {
         Output: Return ONLY the JSON object, nothing else.
         `;
 
-            const response = await genAI.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: prompt
-            });
+      const response = await genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
 
-            let evaluationText = response.text.trim();
+      let evaluationText = response.text.trim();
 
-            // Remove markdown code blocks if present
-            evaluationText = evaluationText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      // Remove markdown code blocks if present
+      evaluationText = evaluationText
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "");
 
-            const evaluation = JSON.parse(evaluationText);
+      const evaluation = JSON.parse(evaluationText);
 
-            // Calculate additional metrics
-            const completionTime = interviewData.answers.reduce((sum, a) => sum + (a.duration || 0), 0);
-            evaluation.totalQuestions = interviewData.answers.length;
-            evaluation.completionTime = `${Math.floor(completionTime / 60)} minutes`;
+      // Calculate additional metrics
+      const completionTime = interviewData.answers.reduce(
+        (sum, a) => sum + (a.duration || 0),
+        0,
+      );
+      evaluation.totalQuestions = interviewData.answers.length;
+      evaluation.completionTime = `${Math.floor(completionTime / 60)} minutes`;
 
-            res.status(200).json({
-                success: true,
-                evaluation: evaluation
-            });
+      res.status(200).json({
+        success: true,
+        evaluation: evaluation,
+      });
+    } catch (error) {
+      console.error("Error evaluating interview:", error);
+      next(error);
+    }
+  }
 
-        } catch (error) {
-            console.error("Error evaluating interview:", error);
-            next(error);
-        }
+  // -------------- Helper Functions -------------- //
+  static async transcribeAudio(fileObject) {
+    // Use native FormData and Blob for Node.js 18+
+    const formData = new FormData();
+
+    // Create a Blob from the buffer
+    const blob = new Blob([fileObject.buffer], { type: fileObject.mimetype });
+
+    // Append file to formData
+    formData.append("file", blob, fileObject.originalname);
+    formData.append("model", "whisper-v3");
+
+    const response = await fetch(
+      "https://audio-prod.api.fireworks.ai/v1/audio/transcriptions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.WHISPER_API_KEY}`,
+        },
+        body: formData,
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Gagal melakukan transkripsi");
     }
 
+    const result = await response.json();
+    return result.text;
+  }
 
-    // -------------- Helper Functions -------------- //
-    static async transcribeAudio(fileObject) {
-        const formData = new FormData();
+  static async generateSpeechBuffer(text) {
+    const voiceId = "hpp4J3VqNfWAUOO0d1Us";
 
-        // Konversi buffer dari Multer menjadi stream agar bisa dibaca oleh FormData
-        const stream = Readable.from(fileObject.buffer);
+    const audioStream = await elevenlabs.textToSpeech.convert(voiceId, {
+      text: text,
+      modelId: "eleven_multilingual_v2",
+      outputFormat: "mp3_44100_128",
+    });
 
-        // Tambahkan stream ke formData, sertakan filename agar API mengenali format filenya
-        formData.append('file', stream, {
-            filename: fileObject.originalname,
-            contentType: fileObject.mimetype,
-        });
-
-        formData.append('model', 'whisper-v3');
-
-        const response = await fetch('https://audio-prod.api.fireworks.ai/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${process.env.WHISPER_API_KEY}`,
-                ...formData.getHeaders()
-            },
-            body: formData
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Gagal melakukan transkripsi');
-        }
-
-        const result = await response.json();
-        return result.text;
+    const chunks = [];
+    for await (const chunk of audioStream) {
+      chunks.push(chunk);
     }
 
-    static async generateSpeechBuffer(text) {
-        const voiceId = 'hpp4J3VqNfWAUOO0d1Us';
-
-        const audioStream = await elevenlabs.textToSpeech.convert(voiceId, {
-            text: text,
-            modelId: 'eleven_multilingual_v2',
-            outputFormat: 'mp3_44100_128',
-        });
-
-        const chunks = [];
-        for await (const chunk of audioStream) {
-            chunks.push(chunk);
-        }
-
-        return Buffer.concat(chunks);
-    }
-}
-
+    return Buffer.concat(chunks);
+  }
+};
