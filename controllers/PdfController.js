@@ -36,6 +36,12 @@ const generatePDF = async (req, res, next) => {
   try {
     const { template, profile: customProfile } = req.body;
 
+    console.log("📄 Generate PDF Request:", {
+      userId: req.user.id,
+      template,
+      hasCustomProfile: !!customProfile,
+    });
+
     // Use custom profile from request or fetch from database
     let profile;
     if (customProfile) {
@@ -50,11 +56,26 @@ const generatePDF = async (req, res, next) => {
       profile = user.profile;
     }
 
+    if (!profile || !profile.fullName) {
+      return res.status(400).json({
+        message:
+          "Profile data is incomplete. Please fill in your profile first.",
+      });
+    }
+
+    console.log("✅ Profile found:", { fullName: profile.fullName });
+
     const pdfBuffer = await pdfService.generatePDF(profile, req.user, {
       style: template || "modern",
     });
 
-    const fileName = `CV_${profile.fullName || req.user.name}_${Date.now()}.pdf`;
+    // Sanitize filename - remove special characters that cause header issues
+    const sanitizedName = (profile.fullName || req.user.name || "User")
+      .replace(/[^\w\s-]/g, "") // Remove special chars except spaces and hyphens
+      .replace(/\s+/g, "_") // Replace spaces with underscores
+      .substring(0, 50); // Limit length
+
+    const fileName = `CV_${sanitizedName}_${Date.now()}.pdf`;
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
@@ -62,6 +83,7 @@ const generatePDF = async (req, res, next) => {
 
     res.send(pdfBuffer);
   } catch (error) {
+    console.error("❌ PDF Generation Error:", error);
     next(error);
   }
 };
