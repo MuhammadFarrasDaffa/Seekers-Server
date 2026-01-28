@@ -25,9 +25,6 @@ module.exports = class InterviewController {
             });
         }
 
-        console.log({ categoryId, level, tier, tokenUsage });
-        console.log("Token Tersisa", 10 - tokenUsage);
-
         // check token user
         const userToken = await User.findById(req.user.id).then(user => user.token);
 
