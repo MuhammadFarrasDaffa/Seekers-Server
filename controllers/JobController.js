@@ -1,4 +1,5 @@
 const Job = require("../models/Job");
+const User = require("../models/User");
 const { analyzeMatch } = require("../services/JobsAiService");
 
 class JobController {
@@ -85,9 +86,8 @@ class JobController {
   static async analyzeJobMatch(req, res) {
     try {
       const { id } = req.params; // ID Job
+      const userId = req.user.id; // Ambil dari authentication middleware
 
-      // Nanti: const userId = req.user.id;
-      // Sekarang (Testing): Kita terima object profile mentah dari frontend
       const { userProfile } = req.body;
 
       if (!userProfile || !userProfile.profile) {
@@ -95,6 +95,27 @@ class JobController {
           success: false,
           message:
             "Data profil user tidak ditemukan. Pastikan sudah upload CV.",
+        });
+      }
+
+      // === CEK TOKEN BALANCE ===
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User tidak ditemukan.",
+        });
+      }
+
+      const TOKEN_COST = 1; // Biaya 1 token per analisis
+
+      if (user.token < TOKEN_COST) {
+        return res.status(403).json({
+          success: false,
+          code: "INSUFFICIENT_TOKEN",
+          message: "Token tidak cukup. Silakan beli token terlebih dahulu.",
+          currentBalance: user.token,
+          requiredToken: TOKEN_COST,
         });
       }
 
@@ -115,10 +136,16 @@ class JobController {
       // 2. Analisis Kecocokan (Object vs Object)
       const analysisResult = await analyzeMatch(job, userProfile);
 
+      // === KURANGI TOKEN SETELAH BERHASIL ===
+      user.token -= TOKEN_COST;
+      await user.save();
+
       // 3. Kirim Hasil
       res.status(200).json({
         success: true,
         data: analysisResult,
+        tokenUsed: TOKEN_COST,
+        remainingToken: user.token,
       });
     } catch (error) {
       console.error(error);

@@ -97,6 +97,22 @@ class PDFService {
     return text.replace(/[&<>"']/g, (m) => map[m]);
   }
 
+  // Helper to check if skill is a soft skill
+  isSoftSkill(skillName) {
+    if (!skillName) return false;
+    const softSkillPatterns =
+      /\b(communication|problem.?solving|critical.?thinking|creative.?thinking|leadership|teamwork|collaboration|collaborative|adaptable|adaptive|flexible|time.?management|organization|organized|interpersonal|emotional.?intelligence|conflict.?resolution|decision.?making|negotiation|presentation|public.?speaking|mentoring|coaching|empathy|patience|motivation|initiative|self.?motivated|detail.?oriented|analytical|fast.?learner|quick.?learner|multitasking|stress.?management|work.?ethic|positive.?attitude|open.?minded|receptive|proactive|reliable|dependable|accountable|trustworthy|honest|integrity|respectful|professional|punctual|diligent|perseverance|resilience|curious|creativity|innovation|strategic.?thinking|planning|prioritization)\b/i;
+    return softSkillPatterns.test(skillName);
+  }
+
+  // Helper to check if skill is a tool
+  isTool(skillName) {
+    if (!skillName) return false;
+    const toolPatterns =
+      /\b(figma|adobe|photoshop|illustrator|xd|sketch|miro|trello|jira|asana|notion|slack|git|github|gitlab|vscode|vs code|postman|docker|kubernetes|aws|azure|gcp|excel|word|powerpoint|canva|invision|zeplin|abstract|principle|framer|webflow|wordpress|shopify|firebase|mongodb|mysql|postgresql|redis|jenkins|terraform|ansible|linux|windows|macos)\b/i;
+    return toolPatterns.test(skillName);
+  }
+
   generateCVHTML(profile, user, style = "modern") {
     const {
       fullName,
@@ -244,8 +260,13 @@ class PDFService {
             }
             
             .skills-list {
-                line-height: 1.4;
+                line-height: 1.5;
                 font-size: 10pt;
+                margin-bottom: 4px;
+            }
+            
+            .skills-list strong {
+                font-weight: bold;
             }
 
             .cert-details {
@@ -405,8 +426,35 @@ class PDFService {
                 ? `
             <div class="section">
                 <div class="section-title">SKILLS</div>
-                <div class="skills-list">
-                    ${skills
+                ${(() => {
+                  // Categorize skills
+                  const hardSkills = skills.filter((s) => {
+                    const skill = typeof s === "string" ? { name: s } : s;
+                    return (
+                      skill.category === "hardSkill" ||
+                      (!skill.category &&
+                        !this.isSoftSkill(skill.name) &&
+                        !this.isTool(skill.name))
+                    );
+                  });
+                  const softSkills = skills.filter((s) => {
+                    const skill = typeof s === "string" ? { name: s } : s;
+                    return (
+                      skill.category === "softSkill" ||
+                      (!skill.category && this.isSoftSkill(skill.name))
+                    );
+                  });
+                  const tools = skills.filter((s) => {
+                    const skill = typeof s === "string" ? { name: s } : s;
+                    return (
+                      skill.category === "tool" ||
+                      (!skill.category && this.isTool(skill.name))
+                    );
+                  });
+
+                  const formatSkillList = (label, skillArray) => {
+                    if (!skillArray || skillArray.length === 0) return "";
+                    const skillNames = skillArray
                       .filter(
                         (s) =>
                           (typeof s === "string" && s.trim()) ||
@@ -415,8 +463,18 @@ class PDFService {
                       .map((s) =>
                         this.escapeHtml(typeof s === "string" ? s : s.name),
                       )
-                      .join(" • ")}
-                </div>
+                      .join(", ");
+                    return skillNames
+                      ? `<div class="skills-list"><strong>${label}:</strong> ${skillNames}</div>`
+                      : "";
+                  };
+
+                  return (
+                    formatSkillList("Technical Skills", hardSkills) +
+                    formatSkillList("Soft Skills", softSkills) +
+                    formatSkillList("Tools", tools)
+                  );
+                })()}
             </div>
             `
                 : ""
