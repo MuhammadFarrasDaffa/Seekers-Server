@@ -12,6 +12,7 @@ const QuestionRoutes = require("./QuestionRoutes");
 const PaymentRoutes = require("./PaymentRoutes");
 const TierRoutes = require("./TierRoutes");
 const PackageRoutes = require("./PackageRoutes");
+const CategoryRoutes = require("./CategoryRoutes");
 
 router.use("/auth", authRoutes);
 router.use("/profile", profileRoutes);
@@ -24,5 +25,6 @@ router.use("/questions", QuestionRoutes);
 router.use("/payment", PaymentRoutes);
 router.use("/tiers", TierRoutes);
 router.use("/packages", PackageRoutes);
+router.use("/categories", CategoryRoutes);
 
 module.exports = router;

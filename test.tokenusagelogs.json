@@ -1,0 +1,201 @@
+[{
+  "_id": {
+    "$oid": "6983eb70958f4a2bf8270419"
+  },
+  "userId": {
+    "$oid": "697880c469a8c9e707134205"
+  },
+  "totalTokensUsed": 0,
+  "functionName": "responseToAnswer",
+  "promptTokens": 371,
+  "candidatesTokens": 31,
+  "thoughtsTokens": 0,
+  "totalTokens": 402,
+  "model": "gemini-2.0-flash",
+  "details": [],
+  "createdAt": {
+    "$date": "2026-02-05T00:59:28.571Z"
+  },
+  "updatedAt": {
+    "$date": "2026-02-05T00:59:28.571Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6983eb87958f4a2bf8270449"
+  },
+  "userId": {
+    "$oid": "697880c469a8c9e707134205"
+  },
+  "totalTokensUsed": 0,
+  "functionName": "responseToAnswer",
+  "promptTokens": 374,
+  "candidatesTokens": 46,
+  "thoughtsTokens": 0,
+  "totalTokens": 420,
+  "model": "gemini-2.0-flash",
+  "details": [],
+  "createdAt": {
+    "$date": "2026-02-05T00:59:51.970Z"
+  },
+  "updatedAt": {
+    "$date": "2026-02-05T00:59:51.970Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6983eba6958f4a2bf8270479"
+  },
+  "userId": {
+    "$oid": "697880c469a8c9e707134205"
+  },
+  "totalTokensUsed": 0,
+  "functionName": "responseToAnswer",
+  "promptTokens": 305,
+  "candidatesTokens": 31,
+  "thoughtsTokens": 0,
+  "totalTokens": 336,
+  "model": "gemini-2.0-flash",
+  "details": [],
+  "createdAt": {
+    "$date": "2026-02-05T01:00:22.114Z"
+  },
+  "updatedAt": {
+    "$date": "2026-02-05T01:00:22.114Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6983ebbf958f4a2bf82704a9"
+  },
+  "userId": {
+    "$oid": "697880c469a8c9e707134205"
+  },
+  "totalTokensUsed": 0,
+  "functionName": "responseToAnswer",
+  "promptTokens": 381,
+  "candidatesTokens": 37,
+  "thoughtsTokens": 0,
+  "totalTokens": 418,
+  "model": "gemini-2.0-flash",
+  "details": [],
+  "createdAt": {
+    "$date": "2026-02-05T01:00:47.445Z"
+  },
+  "updatedAt": {
+    "$date": "2026-02-05T01:00:47.445Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6983ebe0958f4a2bf82704d9"
+  },
+  "userId": {
+    "$oid": "697880c469a8c9e707134205"
+  },
+  "totalTokensUsed": 0,
+  "functionName": "responseToAnswer",
+  "promptTokens": 327,
+  "candidatesTokens": 42,
+  "thoughtsTokens": 0,
+  "totalTokens": 369,
+  "model": "gemini-2.0-flash",
+  "details": [],
+  "createdAt": {
+    "$date": "2026-02-05T01:01:20.942Z"
+  },
+  "updatedAt": {
+    "$date": "2026-02-05T01:01:20.942Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6983ebfa958f4a2bf8270509"
+  },
+  "userId": {
+    "$oid": "697880c469a8c9e707134205"
+  },
+  "totalTokensUsed": 0,
+  "functionName": "responseToAnswer",
+  "promptTokens": 405,
+  "candidatesTokens": 35,
+  "thoughtsTokens": 0,
+  "totalTokens": 440,
+  "model": "gemini-2.0-flash",
+  "details": [],
+  "createdAt": {
+    "$date": "2026-02-05T01:01:46.712Z"
+  },
+  "updatedAt": {
+    "$date": "2026-02-05T01:01:46.712Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6983ec18958f4a2bf8270539"
+  },
+  "userId": {
+    "$oid": "697880c469a8c9e707134205"
+  },
+  "totalTokensUsed": 0,
+  "functionName": "responseToAnswer",
+  "promptTokens": 371,
+  "candidatesTokens": 34,
+  "thoughtsTokens": 0,
+  "totalTokens": 405,
+  "model": "gemini-2.0-flash",
+  "details": [],
+  "createdAt": {
+    "$date": "2026-02-05T01:02:16.635Z"
+  },
+  "updatedAt": {
+    "$date": "2026-02-05T01:02:16.635Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6983ec39958f4a2bf82705cc"
+  },
+  "userId": {
+    "$oid": "697880c469a8c9e707134205"
+  },
+  "interviewId": {
+    "$oid": "6983ec30958f4a2bf8270552"
+  },
+  "category": "Backend Developer",
+  "level": "junior",
+  "tier": "Basic Plan",
+  "totalTokensUsed": 2169,
+  "details": [
+    {
+      "functionName": "evaluateInterviewById",
+      "promptTokens": 1164,
+      "candidatesTokens": 1005,
+      "thoughtsTokens": 0,
+      "totalTokens": 2169,
+      "model": "gemini-2.0-flash",
+      "timestamp": {
+        "$date": "2026-02-05T01:02:49.496Z"
+      },
+      "_id": {
+        "$oid": "6983ec39958f4a2bf82705cd"
+      }
+    }
+  ],
+  "thoughtsTokens": 0,
+  "model": "gemini-2.0-flash",
+  "createdAt": {
+    "$date": "2026-02-05T01:02:49.548Z"
+  },
+  "updatedAt": {
+    "$date": "2026-02-05T01:02:49.548Z"
+  },
+  "__v": 0
+}]
